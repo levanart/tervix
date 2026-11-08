@@ -1,0 +1,25 @@
+[workspace]
+members = ["apps/tervix", "crates/tervix-core", "crates/tervix-application"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+tervix-core = { version = "0.1.0", path = "crates/tervix-core" }
+tervix-application = { version = "0.1.0", path = "crates/tervix-application" }
+thiserror = "2.0.21"
+uuid = { version = "1.29.1", default-features = false }
+proptest = { version = "1.12.0", default-features = false, features = ["std"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
