@@ -35,6 +35,9 @@ jobs:
       image: rust:bookworm
       volumes:
         - tervix-windows-sdk:/opt/tervix-windows-sdk
+    env:
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
+      CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
     defaults:
       run:
         shell: bash
@@ -60,6 +63,11 @@ jobs:
             target="$arch-pc-windows-msvc"
             exe="target/$target/release/tervix.exe"
             cargo xwin build --release --locked -p tervix --target "$target"
+            imports="$(llvm-objdump -p "$exe")"
+            if grep -Eiq 'DLL Name:.*(vcruntime|msvcp)' <<< "$imports"; then
+              echo "Unexpected Visual C++ runtime dependency in $target" >&2
+              exit 1
+            fi
             cp "$exe" "dist/$name-$target.exe"
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
