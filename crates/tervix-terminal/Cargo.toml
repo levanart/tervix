@@ -1,0 +1,16 @@
+[package]
+name = "tervix-terminal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tervix-application.workspace = true
+portable-pty.workspace = true
+alacritty_terminal.workspace = true
+unicode-width = "=0.2.3"
+uuid = { workspace = true, features = ["v4"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "tervix-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tervix-application.workspace = true
+iced = { workspace = true, features = ["advanced", "canvas", "tokio", "image-without-codecs"] }
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+iced_wgpu = "=0.13.5"
+
+[lints]
+workspace = true

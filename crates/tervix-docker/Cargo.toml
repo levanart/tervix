@@ -1,0 +1,24 @@
+[package]
+name = "tervix-docker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tervix-application.workspace = true
+tervix-terminal.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+bollard = { version = "=0.19.4", default-features = false, features = ["pipe"] }
+tokio = { version = "1.48", features = ["rt", "sync", "time", "net", "macros", "io-util"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+arc-swap = "1.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+tokio = { version = "1.48", features = ["io-util"] }
+
+[lints]
+workspace = true
