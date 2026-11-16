@@ -122,7 +122,7 @@ Headless UI tests требуют доступного WGPU adapter, но не о
 
 Release pipeline запускается **только вручную**: введите новую версию, и он
 на self-hosted Linux runner соберёт Windows x64, Windows ARM64 и Linux x64,
-сгенерирует changelog и приложит исходники, отдельные бинарники и SHA256.
+сгенерирует changelog и приложит три отдельных бинарника.
 ARM64 экспериментальный. Локальный терминал доступен на Windows.
 [Процедура выпуска](RELEASE.md) ·
 [Release notes](RELEASE_NOTES.md) · [Review готовности](REVIEW.md) ·

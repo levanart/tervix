@@ -13,7 +13,7 @@ on:
         type: boolean
 
       publish:
-        description: Create a GitHub Release after verifying both packages
+        description: Create a GitHub Release after building all executables
         default: true
         type: boolean
 
@@ -47,8 +47,7 @@ jobs:
           rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
           cargo install --locked cargo-xwin --version 0.23.0
       - run: python3 scripts/prepare_release.py --version "$RELEASE_VERSION" --commit "$RELEASE_SHA" --apply
-      - run: cargo fetch --locked
-      - name: Build and package release assets
+      - name: Build release executables
         run: |
           name="tervix-v$RELEASE_VERSION"
           mkdir -p dist
@@ -59,11 +58,8 @@ jobs:
             target="$arch-pc-windows-msvc"
             exe="target/$target/release/tervix.exe"
             cargo xwin build --release --locked -p tervix --target "$target"
-            python3 scripts/package_release.py --version "$RELEASE_VERSION" --commit "$RELEASE_SHA" --target "$target" --exe "$exe" --output dist
             cp "$exe" "dist/$name-$target.exe"
           done
-          git archive --format=tar.gz --prefix="$name/" --output="dist/$name-source.tar.gz" "$RELEASE_SHA"
-          cp CHANGELOG.md dist/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-assets
@@ -89,13 +85,13 @@ jobs:
         with:
           name: release-assets
           path: dist
-      - run: python3 scripts/verify_release.py --version "$RELEASE_VERSION" --directory dist
-      - name: Check standalone assets and write checksums
-        working-directory: dist
+      - name: Verify the release executables
         run: |
           name="tervix-v$RELEASE_VERSION"
-          tar -tzf "$name-source.tar.gz" > /dev/null
-          sha256sum "$name-source.tar.gz" "$name-linux-x86_64" "$name"-*-pc-windows-msvc.exe >> SHA256SUMS.txt
+          test -s "dist/$name-linux-x86_64"
+          for arch in x86_64 aarch64; do
+            test -s "dist/$name-$arch-pc-windows-msvc.exe"
+          done
       - name: Publish GitHub Release
         if: inputs.publish
         env:
@@ -110,6 +106,7 @@ jobs:
             status=$?
             if [ "$status" -ne 2 ]; then exit "$status"; fi
           fi
-          args=(release create "$tag" --target "$RELEASE_SHA" --title "Tervix $tag" --notes-file dist/CHANGELOG.md)
+          python3 scripts/prepare_release.py --version "$RELEASE_VERSION" --commit "$RELEASE_SHA" > CHANGELOG.md
+          args=(release create "$tag" --target "$RELEASE_SHA" --title "Tervix $tag" --notes-file CHANGELOG.md)
           if [ "$RELEASE_PRERELEASE" = true ] || [[ "$RELEASE_VERSION" == *-* ]]; then args+=(--prerelease); fi
           gh "${args[@]}" dist/*
