@@ -31,7 +31,10 @@ env:
 jobs:
   build:
     runs-on: [self-hosted, Linux, X64]
-    container: rust:bookworm
+    container:
+      image: rust:bookworm
+      volumes:
+        - tervix-windows-sdk:/opt/tervix-windows-sdk
     defaults:
       run:
         shell: bash
