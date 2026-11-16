@@ -83,11 +83,10 @@ def changelog(root, version, commit):
             lines += [f"## {title}", "", *items, ""]
     if not entries:
         lines += ["No new non-merge commits since the previous version tag.", ""]
-    lines += ["## Downloads", "", "- Windows x64 portable ZIP.",
-              "- Windows ARM64 portable ZIP (experimental; native device acceptance pending).",
-              "- Standalone executables for Windows x64, Windows ARM64, and Linux x64.",
-              "- Source archive from the tagged commit.",
-              "- SHA256SUMS.txt contains checksums for the release assets.", "",
+    lines += ["## Downloads", "",
+              "- Windows x64 executable.",
+              "- Windows ARM64 executable (experimental).",
+              "- Linux x64 executable (preview).", "",
               "The local terminal adapter currently supports Windows only. Linux x64 is a preview.",
               "Build versions are applied to the checkout manifests/lockfile; the tag identifies the original source commit.",
               "Artifacts are unsigned. Preview limitations and third-party license review are described in RELEASE.md.", ""]
