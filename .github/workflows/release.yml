@@ -36,7 +36,6 @@ jobs:
       run:
         shell: bash
     steps:
-      - run: apt-get update && apt-get install -y --no-install-recommends ca-certificates git gh python3
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
@@ -72,51 +71,6 @@ jobs:
           if-no-files-found: error
 
   publish:
-        description: Create a GitHub Release after verifying both packages
-        default: true
-        type: boolean
-
-permissions:
-  contents: read
-
-concurrency:
-  group: release-${{ github.repository }}
-  cancel-in-progress: false
-
-env:
-  RELEASE_VERSION: ${{ inputs.version }}
-  RELEASE_SHA: ${{ github.sha }}
-
-jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-2022
-            target: x86_64-pc-windows-msvc
-          - runner: windows-11-arm
-            target: aarch64-pc-windows-msvc
-    runs-on: ${{ matrix.runner }}
-    env:
-      RELEASE_TARGET: ${{ matrix.target }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - run: python scripts/prepare_release.py --version "$env:RELEASE_VERSION" --commit "$env:RELEASE_SHA" --apply
-      - run: rustup target add "$env:RELEASE_TARGET"
-      - run: cargo fetch --locked
-      - run: cargo build --release --locked -p tervix --target "$env:RELEASE_TARGET"
-      - run: python scripts/package_release.py --version "$env:RELEASE_VERSION" --commit "$env:RELEASE_SHA" --target "$env:RELEASE_TARGET" --exe "target/$env:RELEASE_TARGET/release/tervix.exe" --output dist
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-${{ matrix.target }}
-          path: dist/
-          if-no-files-found: error
-
-  publish:
     needs: build
     runs-on: [self-hosted, Linux, X64]
     container: debian:bookworm
@@ -126,6 +80,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends ca-certificates git gh python3
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
