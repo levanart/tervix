@@ -284,8 +284,8 @@ mod tests {
             run(&mut command, Duration::ZERO),
             Err(DiscoveryError::Timeout)
         );
-        let mut command = Command::new("powershell.exe");
-        command.args(["-NoProfile", "-Command", "[Console]::Write('x' * 65537)"]);
+        let mut command = Command::new("cmd.exe");
+        command.args(["/D", "/C", "for /L %i in (1,1,8000) do @echo 0123456789"]);
         assert_eq!(run(&mut command, TIMEOUT), Err(DiscoveryError::OutputLimit));
     }
     #[test]
