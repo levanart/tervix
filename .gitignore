@@ -18,3 +18,22 @@ Thumbs.db
 Desktop.ini
 *:Zone.Identifier
 *:Zone.Identifier:$DATA
+
+# Internal engineering documentation and local AI/system prompts.
+# Already tracked files remain tracked; these rules never remove working files.
+/docs/
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/.opencode/
+/.claude/
+/.cursor/
+/prompts/
+/system-prompts/
+/system_prompts/
+
+# Locally generated release candidates and unreviewed screenshots.
+/dist/
+/assets/screenshots/*-unreviewed.png
+__pycache__/
+*.pyc

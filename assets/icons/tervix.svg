@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Tervix</title>
+  <desc id="description">A luminous terminal prompt beside two workspace tiles, inside a deep navy rounded square.</desc>
+  <defs>
+    <linearGradient id="rim" gradientUnits="userSpaceOnUse" x1="24" y1="12" x2="220" y2="244">
+      <stop offset="0" stop-color="#8871e8"/>
+      <stop offset="1" stop-color="#35dcca"/>
+    </linearGradient>
+    <linearGradient id="navy" gradientUnits="userSpaceOnUse" x1="16" y1="16" x2="240" y2="240">
+      <stop offset="0" stop-color="#202d4c"/>
+      <stop offset="1" stop-color="#0b1226"/>
+    </linearGradient>
+    <linearGradient id="violet" gradientUnits="userSpaceOnUse" x1="156" y1="44" x2="224" y2="120">
+      <stop offset="0" stop-color="#b49aff"/>
+      <stop offset="1" stop-color="#7958df"/>
+    </linearGradient>
+    <linearGradient id="teal" gradientUnits="userSpaceOnUse" x1="156" y1="132" x2="224" y2="212">
+      <stop offset="0" stop-color="#53eadc"/>
+      <stop offset="1" stop-color="#19a9b5"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="56" fill="url(#rim)"/>
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#navy)"/>
+  <rect x="32" y="44" width="112" height="168" rx="18" fill="#263957"/>
+  <rect x="35" y="47" width="106" height="162" rx="15" fill="#111e35"/>
+  <rect x="156" y="44" width="68" height="76" rx="16" fill="url(#violet)"/>
+  <rect x="156" y="132" width="68" height="80" rx="16" fill="url(#teal)"/>
+  <polygon points="54,90 80,116 54,142 65,153 102,116 65,79" fill="#70f5e5"/>
+  <rect x="65" y="171" width="46" height="10" rx="5" fill="#b49aff"/>
+  <rect x="173" y="65" width="34" height="9" rx="4.5" fill="#261f50"/>
+  <rect x="173" y="83" width="23" height="9" rx="4.5" fill="#261f50"/>
+  <rect x="173" y="166" width="12" height="27" rx="4" fill="#104555"/>
+  <rect x="195" y="151" width="12" height="42" rx="4" fill="#104555"/>
+</svg>

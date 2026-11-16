@@ -1,6 +1,6 @@
 //! Integer geometry with explicit overflow instead of hidden or zero-sized tiles.
 
-use crate::{Axis, Layout, LayoutError, LayoutNode, Pane, SplitRatio};
+use crate::{Axis, Layout, LayoutError, LayoutNode, Pane, PaneId, SplitRatio};
 
 /// Positive dimensions in caller-chosen logical units (not physical DPI pixels).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +53,30 @@ pub struct PaneGeometry {
     pub rect: Rect,
 }
 
+/// One recursive divider, in canvas coordinates. This Copy-compatible address
+/// survives ratio changes, but must be rediscovered after topology changes.
+/// No permanent split IDs or heap-allocated paths are needed for pointer gestures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitBoundary {
+    /// Deterministic first descendant pane used to address this split.
+    pub anchor: PaneId,
+    /// Zero denotes the anchor's immediate parent.
+    pub ancestor_depth: u8,
+    /// Entire split allocation, used to convert pointer positions to ratios.
+    pub rect: Rect,
+    /// Vertical divides left/right; horizontal divides top/bottom.
+    pub axis: Axis,
+    /// Stored first-child ratio; actual position may be minimum-clamped.
+    pub ratio: SplitRatio,
+    /// Absolute x (vertical) or y (horizontal) of the actual divider line.
+    /// Its perpendicular span is given by `rect`; UI chooses hit-test thickness.
+    pub position: u32,
+    /// Recursive minimum dimensions of the first subtree.
+    pub first_minimum: Size,
+    /// Recursive minimum dimensions of the second subtree.
+    pub second_minimum: Size,
+}
+
 /// A complete non-overlapping tiling, possibly larger than its viewport.
 /// A future UI must expose scroll/pan on overflowing axes, never clip silently.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,6 +84,7 @@ pub struct LayoutGeometry {
     viewport: Size,
     canvas: Size,
     panes: Vec<PaneGeometry>,
+    boundaries: Vec<SplitBoundary>,
 }
 
 impl LayoutGeometry {
@@ -92,6 +117,13 @@ impl LayoutGeometry {
     pub fn panes(&self) -> &[PaneGeometry] {
         &self.panes
     }
+
+    /// All recursive split dividers in deterministic preorder (outer before inner).
+    /// Coordinates include overflow; apply the same scroll transform as panes.
+    #[must_use]
+    pub fn boundaries(&self) -> &[SplitBoundary] {
+        &self.boundaries
+    }
 }
 
 impl Layout {
@@ -106,6 +138,7 @@ impl Layout {
             height: viewport.height.max(measured.minimum.height),
         };
         let mut panes = Vec::new();
+        let mut boundaries = Vec::new();
         measured.allocate(
             Rect {
                 x: 0,
@@ -114,18 +147,77 @@ impl Layout {
                 height: canvas.height,
             },
             &mut panes,
+            &mut boundaries,
         );
         Ok(LayoutGeometry {
             viewport,
             canvas,
             panes,
+            boundaries,
         })
+    }
+
+    pub(crate) fn clamp_split_ratio(
+        &self,
+        anchor: PaneId,
+        depth: u8,
+        ratio: SplitRatio,
+        viewport: Size,
+        minimum: Size,
+    ) -> Result<SplitRatio, LayoutError> {
+        self.root()
+            .pane_depth(anchor)
+            .ok_or(LayoutError::PaneNotFound)?;
+        let target = self
+            .root()
+            .ancestor(anchor, depth)
+            .ok_or(LayoutError::NoSplit)?;
+        let geometry = self.measure(viewport, minimum)?;
+        let boundary = geometry
+            .boundaries()
+            .iter()
+            .find(|boundary| {
+                self.root()
+                    .ancestor(boundary.anchor, boundary.ancestor_depth)
+                    .is_some_and(|node| std::ptr::eq(node, target))
+            })
+            .ok_or(LayoutError::NoSplit)?;
+        let (total, first, second) = match boundary.axis {
+            Axis::Vertical => (
+                boundary.rect.width,
+                boundary.first_minimum.width,
+                boundary.second_minimum.width,
+            ),
+            Axis::Horizontal => (
+                boundary.rect.height,
+                boundary.first_minimum.height,
+                boundary.second_minimum.height,
+            ),
+        };
+        // floor(total * ratio / 10000) must fit both recursive minima.
+        let total = u64::from(total);
+        let lower = (u64::from(first) * 10_000).div_ceil(total).max(1000);
+        let upper = ((total - u64::from(second) + 1) * 10_000)
+            .div_ceil(total)
+            .saturating_sub(1)
+            .min(9000);
+        // Extreme subtree imbalance or integer quantization can leave no ratio
+        // inside policy bounds. Measurement still enforces minima exactly; use
+        // the nearest policy-valid ratio in that case.
+        let share = if lower <= upper {
+            u64::from(ratio.basis_points()).clamp(lower, upper)
+        } else {
+            lower.clamp(1000, 9000)
+        };
+        SplitRatio::new(share as u16)
     }
 }
 
 // Cache subtree minima once, so allocation is linear in the number of nodes.
 struct MeasuredNode {
     minimum: Size,
+    anchor: PaneId,
+    anchor_distance: u8,
     content: MeasuredContent,
 }
 
@@ -144,6 +236,8 @@ impl MeasuredNode {
         match node {
             LayoutNode::Pane(pane) => Ok(Self {
                 minimum: leaf_minimum,
+                anchor: pane.id,
+                anchor_distance: 0,
                 content: MeasuredContent::Pane(*pane),
             }),
             LayoutNode::Split {
@@ -169,6 +263,8 @@ impl MeasuredNode {
                 };
                 Ok(Self {
                     minimum,
+                    anchor: first.anchor,
+                    anchor_distance: first.anchor_distance + 1,
                     content: MeasuredContent::Split {
                         axis: *axis,
                         ratio: *ratio,
@@ -180,7 +276,12 @@ impl MeasuredNode {
         }
     }
 
-    fn allocate(&self, rect: Rect, panes: &mut Vec<PaneGeometry>) {
+    fn allocate(
+        &self,
+        rect: Rect,
+        panes: &mut Vec<PaneGeometry>,
+        boundaries: &mut Vec<SplitBoundary>,
+    ) {
         match &self.content {
             MeasuredContent::Pane(pane) => panes.push(PaneGeometry { pane: *pane, rect }),
             MeasuredContent::Split {
@@ -220,8 +321,21 @@ impl MeasuredNode {
                         },
                     ),
                 };
-                first.allocate(a, panes);
-                second.allocate(b, panes);
+                boundaries.push(SplitBoundary {
+                    anchor: self.anchor,
+                    ancestor_depth: self.anchor_distance - 1,
+                    rect,
+                    axis: *axis,
+                    ratio: *ratio,
+                    position: match axis {
+                        Axis::Vertical => b.x,
+                        Axis::Horizontal => b.y,
+                    },
+                    first_minimum: first.minimum,
+                    second_minimum: second.minimum,
+                });
+                first.allocate(a, panes, boundaries);
+                second.allocate(b, panes, boundaries);
             }
         }
     }

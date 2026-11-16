@@ -7,7 +7,15 @@ license.workspace = true
 
 [dependencies]
 tervix-application.workspace = true
+tervix-ui.workspace = true
+tervix-terminal.workspace = true
+tervix-system.workspace = true
+tervix-docker.workspace = true
 uuid = { workspace = true, features = ["v4"] }
+tervix-platform-windows = { path = "../../crates/tervix-platform-windows" }
+
+[build-dependencies]
+winresource = { version = "=0.1.30", default-features = false }
 
 [lints]
 workspace = true

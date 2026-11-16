@@ -1,10 +1,18 @@
-//! Headless layout orchestration. Does not own GUI or OS resources.
+//! Headless layout and terminal orchestration. OS resources stay behind I/O ports.
 
 use std::collections::VecDeque;
 
+pub mod docker;
+pub mod monitoring;
+pub mod ssh;
+pub mod terminal;
+pub mod terminal_registry;
+pub mod wsl;
+
 pub use tervix_core::{
     Axis, Direction, Layout, LayoutCommand, LayoutError, LayoutGeometry, LayoutNode,
-    NavigationCommand, Pane, PaneGeometry, PaneId, Rect, Size, SplitRatio, ViewId,
+    NavigationCommand, Pane, PaneGeometry, PaneId, Rect, SessionId, Size, SplitBoundary,
+    SplitRatio, ViewId,
 };
 
 /// Maximum number of topology/size changes retained for undo.
@@ -36,16 +44,26 @@ pub enum CommandError {
     /// No previously focused pane remains reachable.
     #[error("no previous pane to focus")]
     NoPreviousFocus,
+    /// Finish or cancel the active gesture before issuing another action.
+    #[error("a resize gesture is already in progress")]
+    ResizeInProgress,
+    /// Preview, commit and cancel require an active gesture.
+    #[error("no resize gesture is in progress")]
+    NoResizeInProgress,
+    /// Gesture previews accept only explicit split resize commands.
+    #[error("resize previews require LayoutCommand::Resize or ResizeSplit")]
+    NotResizeCommand,
 }
 
 /// One tab's current layout and bounded layout-only history.
 /// View/session registries remain outside history: undo restores identities,
-/// not live processes. Resource reconciliation will be added with PTY ownership.
+/// not live processes. `terminal_registry` reconciles resources independently.
 #[derive(Debug)]
 pub struct LayoutController {
     layout: Layout,
     history: VecDeque<Layout>,
     focus_history: VecDeque<PaneId>,
+    resize_origin: Option<Layout>,
 }
 
 impl LayoutController {
@@ -56,6 +74,7 @@ impl LayoutController {
             layout,
             history: VecDeque::new(),
             focus_history: VecDeque::new(),
+            resize_origin: None,
         }
     }
 
@@ -63,6 +82,15 @@ impl LayoutController {
     #[must_use]
     pub fn layout(&self) -> &Layout {
         &self.layout
+    }
+
+    /// Views reachable through the live layout, bounded undo, or resize cancellation.
+    pub fn reachable_views(&self) -> std::collections::HashSet<ViewId> {
+        std::iter::once(&self.layout)
+            .chain(self.history.iter())
+            .chain(self.resize_origin.iter())
+            .flat_map(|layout| layout.panes().into_iter().map(|pane| pane.view))
+            .collect()
     }
 
     /// Number of retained changes, at most `UNDO_LIMIT`.
@@ -77,9 +105,73 @@ impl LayoutController {
         self.focus_history.iter().copied()
     }
 
+    /// Whether a transactional pointer resize is active.
+    #[must_use]
+    pub fn resize_active(&self) -> bool {
+        self.resize_origin.is_some()
+    }
+
+    /// Begins a resize without changing the layout or undo history.
+    /// Returns `ResizeInProgress` if a gesture is already active. All regular
+    /// dispatches are rejected until commit/cancel, keeping split targets stable.
+    pub fn begin_resize(&mut self) -> Result<(), CommandError> {
+        if self.resize_active() {
+            return Err(CommandError::ResizeInProgress);
+        }
+        self.resize_origin = Some(self.layout.clone());
+        Ok(())
+    }
+
+    /// Applies a validated `LayoutCommand::Resize` or `ResizeSplit` preview,
+    /// visible via `layout`. Recursive addresses remain stable during the gesture.
+    /// Does not record undo or alter focus history. Any error preserves the last
+    /// valid preview and leaves the gesture active. Other commands are rejected.
+    pub fn preview_resize(&mut self, command: LayoutCommand) -> Result<(), CommandError> {
+        if !self.resize_active() {
+            return Err(CommandError::NoResizeInProgress);
+        }
+        if !matches!(
+            command,
+            LayoutCommand::Resize { .. } | LayoutCommand::ResizeSplit { .. }
+        ) {
+            return Err(CommandError::NotResizeCommand);
+        }
+        let next = self.layout.apply(command)?;
+        self.layout = next;
+        Ok(())
+    }
+
+    /// Ends the gesture, recording exactly one pre-gesture snapshot if changed.
+    /// Unchanged gestures record nothing. Returns `NoResizeInProgress` if idle.
+    pub fn commit_resize(&mut self) -> Result<(), CommandError> {
+        let origin = self
+            .resize_origin
+            .take()
+            .ok_or(CommandError::NoResizeInProgress)?;
+        if origin != self.layout {
+            self.record_undo(origin);
+        }
+        Ok(())
+    }
+
+    /// Restores the exact pre-gesture layout without changing undo/focus history.
+    /// Returns `NoResizeInProgress` if idle.
+    pub fn cancel_resize(&mut self) -> Result<(), CommandError> {
+        let origin = self
+            .resize_origin
+            .take()
+            .ok_or(CommandError::NoResizeInProgress)?;
+        self.layout = origin;
+        Ok(())
+    }
+
     /// Validates before commit. Focus-only and no-op commands do not add history.
     /// Errors leave both the current layout and undo stack unchanged.
+    /// During a resize gesture every command returns `ResizeInProgress`.
     pub fn dispatch(&mut self, command: Command) -> Result<(), CommandError> {
+        if self.resize_active() {
+            return Err(CommandError::ResizeInProgress);
+        }
         match command {
             Command::Undo => {
                 let previous = self.history.pop_back().ok_or(CommandError::NothingToUndo)?;
@@ -116,13 +208,17 @@ impl LayoutController {
             return Ok(());
         }
         if records_undo(action) {
-            if self.history.len() == UNDO_LIMIT {
-                self.history.pop_front();
-            }
-            self.history.push_back(self.layout.clone());
+            self.record_undo(self.layout.clone());
         }
         self.commit(next);
         Ok(())
+    }
+
+    fn record_undo(&mut self, snapshot: Layout) {
+        if self.history.len() == UNDO_LIMIT {
+            self.history.pop_front();
+        }
+        self.history.push_back(snapshot);
     }
 
     fn commit(&mut self, next: Layout) {
@@ -146,9 +242,11 @@ fn records_undo(action: LayoutCommand) -> bool {
     match action {
         LayoutCommand::Focus(_) => false,
         LayoutCommand::Split { .. }
+        | LayoutCommand::MovePane { .. }
         | LayoutCommand::Close(_)
         | LayoutCommand::Swap(_, _)
-        | LayoutCommand::Resize { .. } => true,
+        | LayoutCommand::Resize { .. }
+        | LayoutCommand::ResizeSplit { .. } => true,
         LayoutCommand::Navigate { action, .. } => match action {
             NavigationCommand::Focus(_) => false,
             NavigationCommand::Swap(_)

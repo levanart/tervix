@@ -130,18 +130,13 @@ impl Layout {
             }
             NavigationCommand::Move(direction) => {
                 let target = self.neighbor_target(direction, viewport, minimum)?;
-                let active = self
-                    .panes()
-                    .into_iter()
-                    .find(|pane| pane.id == self.focused())
-                    .ok_or(LayoutError::PaneNotFound)?;
-                let mut root = self
-                    .root()
-                    .clone()
-                    .remove(active.id)
-                    .ok_or(LayoutError::LastPane)?;
-                insert_beside(&mut root, target, active, direction);
-                Self::new(root, active.id)
+                self.apply(LayoutCommand::MovePane {
+                    source: self.focused(),
+                    target,
+                    side: direction,
+                    viewport,
+                    minimum,
+                })
             }
             NavigationCommand::Resize {
                 direction,
@@ -167,6 +162,33 @@ impl Layout {
     ) -> Result<PaneId, LayoutError> {
         self.measure(viewport, minimum)?
             .neighbor(self.focused(), direction)
+    }
+
+    pub(crate) fn move_pane(
+        &self,
+        source: PaneId,
+        target: PaneId,
+        side: Direction,
+    ) -> Result<Self, LayoutError> {
+        let panes = self.panes();
+        let active = panes
+            .iter()
+            .find(|pane| pane.id == source)
+            .copied()
+            .ok_or(LayoutError::PaneNotFound)?;
+        if !panes.iter().any(|pane| pane.id == target) {
+            return Err(LayoutError::PaneNotFound);
+        }
+        if source == target {
+            return Err(LayoutError::SamePane);
+        }
+        let mut root = self
+            .root()
+            .clone()
+            .remove(source)
+            .ok_or(LayoutError::LastPane)?;
+        insert_beside(&mut root, target, active, side);
+        Self::new(root, self.focused())
     }
 }
 

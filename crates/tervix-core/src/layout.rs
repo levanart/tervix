@@ -77,6 +77,20 @@ pub struct Layout {
 /// Typed commands shared by future keyboard, palette, menu and pointer adapters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutCommand {
+    /// Dock an explicit source beside a stable target, preserving focus and IDs.
+    /// Equal shares are measured with recursive minima and explicit overflow.
+    MovePane {
+        /// Existing tile to remove from its old parent.
+        source: PaneId,
+        /// Existing, distinct tile to split after removal.
+        target: PaneId,
+        /// Side of the target occupied by the source.
+        side: crate::Direction,
+        /// Visible logical area.
+        viewport: Size,
+        /// Minimum dimensions of every tile.
+        minimum: Size,
+    },
     /// Directional action resolved using this viewport and minimum tile size.
     Navigate {
         /// Device-independent action on the active pane.
@@ -110,11 +124,31 @@ pub enum LayoutCommand {
         /// New first-child share, independent of which child contains `pane`.
         ratio: SplitRatio,
     },
+    /// Resizes any ancestor of `anchor`, preserving focus and all identities.
+    /// The address is topology-relative: rediscover it after split/close/move/swap.
+    ResizeSplit {
+        /// Any pane descended from the split.
+        anchor: PaneId,
+        /// Zero is the immediate parent, one its parent, and so on.
+        ancestor_depth: u8,
+        /// Requested first-child share, clamped using recursive subtree minima.
+        /// If integer precision or the 10–90% policy prevents a feasible ratio,
+        /// uses the closest policy-valid share to the minimum-feasible interval;
+        /// measurement still guarantees minima.
+        ratio: SplitRatio,
+        /// Current logical viewport, including explicit overflow allocation.
+        viewport: Size,
+        /// Minimum dimensions of each leaf, including decorations.
+        minimum: Size,
+    },
 }
 
 /// Rejected commands leave the original layout unchanged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum LayoutError {
+    /// Docking requires two distinct existing panes.
+    #[error("source and target must be distinct panes")]
+    SamePane,
     /// Ratio exceeds policy bounds.
     #[error("split ratio must be between 1000 and 9000 basis points")]
     InvalidRatio,
@@ -130,8 +164,8 @@ pub enum LayoutError {
     /// Every layout must retain one tile.
     #[error("cannot close the last pane")]
     LastPane,
-    /// Single-tile layouts have no split boundary.
-    #[error("pane has no parent split")]
+    /// The requested ancestor does not exist (including a single-tile layout).
+    #[error("pane has no split at the requested ancestor depth")]
     NoSplit,
     /// Prevent pathological tree depth or memory use.
     #[error("layout exceeds the depth or pane count limit")]
@@ -206,6 +240,17 @@ impl Layout {
     pub fn apply(&self, command: LayoutCommand) -> Result<Self, LayoutError> {
         let mut next = self.clone();
         match command {
+            LayoutCommand::MovePane {
+                source,
+                target,
+                side,
+                viewport,
+                minimum,
+            } => {
+                let moved = self.move_pane(source, target, side)?;
+                moved.measure(viewport, minimum)?;
+                return Ok(moved);
+            }
             LayoutCommand::Navigate {
                 action,
                 viewport,
@@ -250,6 +295,17 @@ impl Layout {
                     return Err(LayoutError::NoSplit);
                 }
             }
+            LayoutCommand::ResizeSplit {
+                anchor,
+                ancestor_depth,
+                ratio,
+                viewport,
+                minimum,
+            } => {
+                let ratio =
+                    self.clamp_split_ratio(anchor, ancestor_depth, ratio, viewport, minimum)?;
+                next.root.resize_ancestor(anchor, ancestor_depth, ratio);
+            }
         }
         next.validate()?;
         Ok(next)
@@ -257,6 +313,47 @@ impl Layout {
 }
 
 impl LayoutNode {
+    pub(super) fn pane_depth(&self, id: PaneId) -> Option<u8> {
+        match self {
+            Self::Pane(pane) => (pane.id == id).then_some(0),
+            Self::Split { first, second, .. } => first
+                .pane_depth(id)
+                .or_else(|| second.pane_depth(id))
+                .map(|depth| depth + 1),
+        }
+    }
+
+    pub(super) fn ancestor(&self, id: PaneId, depth: u8) -> Option<&Self> {
+        let distance = self.pane_depth(id)?;
+        if u16::from(distance) == u16::from(depth) + 1 {
+            return Some(self);
+        }
+        match self {
+            Self::Pane(_) => None,
+            Self::Split { first, second, .. } => first
+                .ancestor(id, depth)
+                .or_else(|| second.ancestor(id, depth)),
+        }
+    }
+
+    fn resize_ancestor(&mut self, id: PaneId, depth: u8, share: SplitRatio) {
+        let is_target = self.pane_depth(id).map(u16::from) == Some(u16::from(depth) + 1);
+        if let Self::Split {
+            ratio,
+            first,
+            second,
+            ..
+        } = self
+        {
+            if is_target {
+                *ratio = share;
+            } else {
+                first.resize_ancestor(id, depth, share);
+                second.resize_ancestor(id, depth, share);
+            }
+        }
+    }
+
     fn validate(
         &self,
         depth: usize,
