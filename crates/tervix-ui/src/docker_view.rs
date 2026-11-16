@@ -7,7 +7,7 @@ use crate::{
 };
 use iced::{
     Element, Length,
-    widget::{button, column, container, pick_list, row, scrollable, text, text_input},
+    widget::{button, column, container, pick_list, row, scrollable, text, text_input, tooltip},
 };
 use tervix_application::{
     ViewId,
@@ -346,7 +346,7 @@ fn logs(p: &PaneState, id: ViewId, l: Language) -> Element<'_, Message> {
         return text(l.text(K::SelectLogs)).size(13).into();
     };
     let mut content = column![
-        text(&target.name).size(12),
+        text(&target.name).size(12).wrapping(text::Wrapping::None),
         row![
             control(
                 l.text(if p.paused { K::Resume } else { K::Pause }),
@@ -393,7 +393,7 @@ fn logs(p: &PaneState, id: ViewId, l: Language) -> Element<'_, Message> {
         content = content.push(control(l.text(K::Resubscribe), id, Event::Subscribe));
     }
     if let Some(frame) = &p.frame {
-        let footer = text(l.format(
+        let summary = l.format(
             K::LogSummaryCompact,
             &[
                 &log_state(&frame.state, l),
@@ -402,8 +402,15 @@ fn logs(p: &PaneState, id: ViewId, l: Language) -> Element<'_, Message> {
                 &frame.dropped_entries.to_string(),
                 &frame.truncated_chunks.to_string(),
             ],
-        ))
-        .size(11);
+        );
+        // Reserve one line for the summary so font metrics cannot consume the log viewport.
+        let footer = tooltip(
+            text(summary.clone())
+                .size(11)
+                .wrapping(text::Wrapping::None),
+            text(summary).size(11),
+            tooltip::Position::Top,
+        );
         let filter = p.log_filter();
         let mut entries = column![].spacing(3);
         for e in frame.entries.iter().filter(|e| filter.matches(e)) {
