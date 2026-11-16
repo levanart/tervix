@@ -44,10 +44,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends clang lld llvm libxkbcommon-dev pkg-config python3
-          export RUSTUP_TOOLCHAIN="$RUST_VERSION"
-          echo "RUSTUP_TOOLCHAIN=$RUSTUP_TOOLCHAIN" >> "$GITHUB_ENV"
-          rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
-          cargo install --locked cargo-xwin --version 0.23.0
+          bash scripts/setup_xwin.sh
       - run: python3 scripts/prepare_release.py --version "$RELEASE_VERSION" --commit "$RELEASE_SHA" --apply
       - name: Build release executables
         run: |
