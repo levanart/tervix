@@ -65,20 +65,23 @@ pub(super) fn view(
         ),
         ConnectionState::Retrying(e) => l.format(K::DockerRetrying, &[&e.to_string()]),
     };
-    let mut content = column![
-        row![
-            text(match d.snapshot.state {
-                ConnectionState::Connected => l.text(K::DockerConnectedCompact).to_owned(),
-                _ => status,
-            })
-            .size(12)
-            .color(design::TEAL)
-            .width(Length::Fill),
-            control(l.text(K::ConnectionSetup), id, Event::Setup)
-        ]
-        .spacing(4),
+    let connection = row![
+        text(match d.snapshot.state {
+            ConnectionState::Connected => l.text(K::DockerConnectedCompact).to_owned(),
+            _ => status,
+        })
+        .size(12)
+        .color(design::TEAL)
+        .width(Length::Fill),
+        control(l.text(K::ConnectionSetup), id, Event::Setup)
     ]
-    .spacing(6);
+    .spacing(4);
+    let connection = if kind == PaneView::DockerLogs && !p.setup {
+        connection.height(26).clip(true)
+    } else {
+        connection
+    };
+    let mut content = column![connection].spacing(6);
     if p.setup {
         content = content.push(
             column![
@@ -346,7 +349,9 @@ fn logs(p: &PaneState, id: ViewId, l: Language) -> Element<'_, Message> {
         return text(l.text(K::SelectLogs)).size(13).into();
     };
     let mut content = column![
-        text(&target.name).size(12).wrapping(text::Wrapping::None),
+        container(text(&target.name).size(12).wrapping(text::Wrapping::None))
+            .max_height(18)
+            .clip(true),
         row![
             control(
                 l.text(if p.paused { K::Resume } else { K::Pause }),
@@ -364,7 +369,9 @@ fn logs(p: &PaneState, id: ViewId, l: Language) -> Element<'_, Message> {
                 iced::widget::tooltip::Position::Bottom
             )
         ]
-        .spacing(4),
+        .spacing(4)
+        .height(26)
+        .clip(true),
         row![
             text_input(l.text(K::LogFilter), &p.query)
                 .id(docker::search_id(id))
@@ -383,7 +390,9 @@ fn logs(p: &PaneState, id: ViewId, l: Language) -> Element<'_, Message> {
             )
             .text_size(12)
         ]
-        .spacing(5),
+        .spacing(5)
+        .height(28)
+        .clip(true),
     ]
     .spacing(4);
     if p.frame
@@ -405,9 +414,13 @@ fn logs(p: &PaneState, id: ViewId, l: Language) -> Element<'_, Message> {
         );
         // Reserve one line for the summary so font metrics cannot consume the log viewport.
         let footer = tooltip(
-            text(summary.clone())
-                .size(11)
-                .wrapping(text::Wrapping::None),
+            container(
+                text(summary.clone())
+                    .size(11)
+                    .wrapping(text::Wrapping::None),
+            )
+            .max_height(16)
+            .clip(true),
             text(summary).size(11),
             tooltip::Position::Top,
         );

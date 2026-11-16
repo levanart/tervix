@@ -24,11 +24,16 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends clang lld llvm libxkbcommon-dev pkg-config
+          export RUSTUP_TOOLCHAIN="$RUST_VERSION"
+          echo "RUSTUP_TOOLCHAIN=$RUSTUP_TOOLCHAIN" >> "$GITHUB_ENV"
           rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
           cargo install --locked cargo-xwin --version 0.23.0
       - name: Install headless Vulkan driver
         run: apt-get install -y --no-install-recommends fonts-dejavu-core libvulkan1 mesa-vulkan-drivers
       - run: cargo test --locked --workspace
-      - run: cargo build --locked -p tervix
-      - run: cargo xwin build --locked -p tervix --target x86_64-pc-windows-msvc
-      - run: cargo xwin build --locked -p tervix --target aarch64-pc-windows-msvc
+      - name: Build Linux and Windows
+        if: ${{ !cancelled() }}
+        run: |
+          cargo build --locked -p tervix
+          cargo xwin build --locked -p tervix --target x86_64-pc-windows-msvc
+          cargo xwin build --locked -p tervix --target aarch64-pc-windows-msvc

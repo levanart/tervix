@@ -421,7 +421,10 @@ fn log_content_has_one_flexible_scroller_instead_of_nested_fixed_height_boxes() 
                 1,
                 "one content scroller; controls/footer stay outside"
             );
-            assert!(probe.0[0] > 0.0, "minimum pane must retain a log viewport");
+            assert!(
+                probe.0[0] > 0.0,
+                "log viewport must be visible for {language:?} at height {height}: {node:?}"
+            );
             heights.push(probe.0[0]);
         }
         assert!(
