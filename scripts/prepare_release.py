@@ -85,9 +85,10 @@ def changelog(root, version, commit):
         lines += ["No new non-merge commits since the previous version tag.", ""]
     lines += ["## Downloads", "", "- Windows x64 portable ZIP.",
               "- Windows ARM64 portable ZIP (experimental; native device acceptance pending).",
-              "- SHA256SUMS.txt contains checksums for both packages.", "",
-              "Linux/macOS are not released: the current terminal adapter explicitly supports Windows only.",
-              "Windows packages are built on GitHub-hosted Windows runners; manual acceptance is separate.",
+              "- Standalone executables for Windows x64, Windows ARM64, and Linux x64.",
+              "- Source archive from the tagged commit.",
+              "- SHA256SUMS.txt contains checksums for the release assets.", "",
+              "The local terminal adapter currently supports Windows only. Linux x64 is a preview.",
               "Build versions are applied to the checkout manifests/lockfile; the tag identifies the original source commit.",
               "Artifacts are unsigned. Preview limitations and third-party license review are described in RELEASE.md.", ""]
     return "\n".join(lines)

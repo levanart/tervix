@@ -11,21 +11,19 @@ prerelease включается автоматически даже при сн�
 
 ## Runner
 
-CI запускает тесты на Windows x64 и сборки Windows x64 и ARM64 на GitHub-hosted runners.
-Проверки выполняются для всех pull requests и при push в main.
-Ручной Release использует ту же матрицу сборок, затем проверяет и публикует архивы на Ubuntu.
+Все задания выполняются на self-hosted Linux x64 runner с Docker.
+Контейнеры устанавливают Rust targets, LLVM, cargo-xwin и тестовые зависимости
+без установки пакетов на хост. Windows собирается через cargo-xwin на Linux.
+CI запускается при push в main и для PR из этого репозитория. PR из форков
+пропускаются, поскольку runner постоянный и имеет доступ к Docker хоста.
 
-## Платформы
+## Артефакты
 
-| Артефакт | Target | Runner | Статус |
-| --- | --- | --- | --- |
-| `tervix-v<VERSION>-windows-x86_64.zip` | `x86_64-pc-windows-msvc` | windows-2022 | Основная сборка Windows 11 x64 |
-| `tervix-v<VERSION>-windows-arm64.zip` | `aarch64-pc-windows-msvc` | windows-11-arm | Экспериментальная, нужна проверка на устройстве |
-
-Это все Windows-архитектуры, включённые в текущую release matrix. Linux/macOS
-не публикуются: `tervix-terminal` явно отклоняет запуск локального терминала вне
-Windows, а Windows chrome/resize и Docker transport требуют портирования.
-Компиляция отдельных crates на Linux не равна поддержке приложения.
+- Windows x64 и ARM64: отдельные файлы `.exe` и portable ZIP.
+- Linux x64: отдельный ELF для систем с совместимой glibc. После скачивания
+  выполните `chmod +x <файл>`. Запуск локального терминала в Linux пока недоступен.
+- Архив исходников `tervix-v<VERSION>-source.tar.gz` из выбранного коммита.
+- `SHA256SUMS.txt` для ZIP, отдельных бинарников и исходников.
 
 ## Что делает workflow
 
@@ -36,7 +34,7 @@ Windows, а Windows chrome/resize и Docker transport требуют порти�
 3. Генерирует `CHANGELOG.md` по non-merge commits от ближайшего `v*` tag-предка:
    Features (`feat`), Fixes (`fix`), Performance (`perf`), Other changes.
    Для первого релиза берётся вся история. В notes указан точный source commit.
-4. Собирает и пакует x64 и ARM64 параллельно на GitHub-hosted Windows runners.
+4. Собирает Linux x64, запускает `--layout-demo` и кросс-компилирует Windows x64 и ARM64.
 5. В каждом ZIP: exe, лицензия проекта, документация, changelog, инвентарь
    зависимостей, найденные тексты лицензий, BUILD.json и точные Cargo.toml/lock
    сборки. Проверяется PE-архитектура: x64 exe нельзя выдать за ARM64.

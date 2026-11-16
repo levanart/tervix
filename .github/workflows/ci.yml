@@ -9,27 +9,26 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: windows-2022
+  test-and-build:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    container: rust:bookworm
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Install Linux and Windows build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends clang lld llvm libxkbcommon-dev pkg-config
+          rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+          cargo install --locked cargo-xwin --version 0.23.0
+      - name: Install headless Vulkan driver
+        run: apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers
       - run: cargo test --locked --workspace
-
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-2022
-            target: x86_64-pc-windows-msvc
-          - runner: windows-11-arm
-            target: aarch64-pc-windows-msvc
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - run: rustup target add ${{ matrix.target }}
-      - run: cargo build --locked -p tervix --target ${{ matrix.target }}
+      - run: cargo build --locked -p tervix
+      - run: cargo xwin build --locked -p tervix --target x86_64-pc-windows-msvc
+      - run: cargo xwin build --locked -p tervix --target aarch64-pc-windows-msvc
