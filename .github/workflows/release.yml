@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       prerelease:
-        description: Mark as preview (automatic for -rc / -beta versions)
+        description: Mark as preview (automatic for versions with a suffix)
         default: true
         type: boolean
 
@@ -22,107 +22,58 @@ concurrency:
 env:
   RELEASE_VERSION: ${{ inputs.version }}
   RELEASE_SHA: ${{ github.sha }}
-  RUSTUP_TOOLCHAIN: 1.89.0
-  CARGO_TERM_COLOR: always
-  CARGO_XWIN_VERSION: 0.23.0
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 180
-    defaults:
-      run:
-        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    env:
+      RELEASE_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-      - name: Check runner prerequisites
-        run: |
-          set -euo pipefail
-          test "$(uname -s)" = Linux && test "$(uname -m)" = x86_64
-          for tool in python3 git gh rustup cargo clang clang-cl lld-link llvm-rc pkg-config; do
-            command -v "$tool" >/dev/null || { echo "Missing prerequisite: $tool (see RELEASE.md)" >&2; exit 1; }
-          done
-          python3 -c 'import sys; assert sys.version_info >= (3,11), "Python 3.11+ is required"'
-          echo "DIST_DIR=$RUNNER_TEMP/tervix-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
-      - name: Validate version and refuse existing tag
-        run: |
-          set -euo pipefail
-          python3 -c 'import os,sys; sys.path.insert(0,"scripts"); from prepare_release import validate_version; validate_version(os.environ["RELEASE_VERSION"])'
-          if git ls-remote --exit-code --tags origin "refs/tags/v$RELEASE_VERSION"; then
-            echo 'Version tag already exists; use a new version.' >&2
-            exit 1
-          else
-            status=$?
-            if [ "$status" -ne 2 ]; then exit "$status"; fi
-          fi
-      - name: Install user-local Rust and cross-compilation tools
-        run: |
-          set -euo pipefail
-          rustup toolchain install 1.89.0 --profile minimal --component clippy --component rustfmt --component llvm-tools
-          rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
-          toolroot="$RUNNER_TEMP/tervix-cross-tools-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          cargo install --locked cargo-xwin --version "$CARGO_XWIN_VERSION" --root "$toolroot"
-          echo "$toolroot/bin" >> "$GITHUB_PATH"
-      - name: Prepare new version and commit-range changelog
-        run: python3 scripts/prepare_release.py --version "$RELEASE_VERSION" --commit "$RELEASE_SHA" --apply
-      - run: python3 -m unittest discover -s scripts -p "test_*.py"
-      - run: python3 assets/icons/generate.py --check
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
-      - name: Run Linux-hosted headless tests (no desktop automation)
-        run: cargo test --locked --workspace
-      - run: cargo check --locked --workspace --all-targets --all-features
-      - run: cargo doc --locked --workspace --no-deps
-        env:
-          RUSTDOCFLAGS: -D warnings
-      - name: Cross-compile and package every supported Windows target
-        run: |
-          set -euo pipefail
-          # One Linux X64 runner: build sequentially, never try to execute PE files.
-          for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
-            cargo xwin check --locked --workspace --all-targets --all-features --target "$target"
-            cargo xwin build --release --locked -p tervix --target "$target"
-            python3 scripts/package_release.py --version "$RELEASE_VERSION" --commit "$RELEASE_SHA" --target "$target" --exe "target/$target/release/tervix.exe" --output "$DIST_DIR"
-          done
-          python3 scripts/verify_release.py --version "$RELEASE_VERSION" --directory "$DIST_DIR"
-          cp CHANGELOG.md "$DIST_DIR/CHANGELOG.md"
+          persist-credentials: false
+      - run: python scripts/prepare_release.py --version "$env:RELEASE_VERSION" --commit "$env:RELEASE_SHA" --apply
+      - run: rustup target add "$env:RELEASE_TARGET"
+      - run: cargo fetch --locked
+      - run: cargo build --release --locked -p tervix --target "$env:RELEASE_TARGET"
+      - run: python scripts/package_release.py --version "$env:RELEASE_VERSION" --commit "$env:RELEASE_SHA" --target "$env:RELEASE_TARGET" --exe "target/$env:RELEASE_TARGET/release/tervix.exe" --output dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: tervix-release-${{ inputs.version }}
-          path: ${{ env.DIST_DIR }}/*
+          name: release-${{ matrix.target }}
+          path: dist/
           if-no-files-found: error
-          retention-days: 30
 
   publish:
     needs: build
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      RELEASE_PRERELEASE: ${{ inputs.prerelease }}
-    defaults:
-      run:
-        shell: bash
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Check publication tools and unique download path
-        run: |
-          set -euo pipefail
-          command -v gh >/dev/null || { echo 'Install GitHub CLI on the runner (see RELEASE.md)' >&2; exit 1; }
-          echo "DIST_DIR=$RUNNER_TEMP/tervix-publish-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: tervix-release-${{ inputs.version }}
-          path: ${{ env.DIST_DIR }}
-      - run: python3 scripts/verify_release.py --version "$RELEASE_VERSION" --directory "$DIST_DIR"
-      - name: Publish versioned release with changelog and all artifacts
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+      - run: python3 scripts/verify_release.py --version "$RELEASE_VERSION" --directory dist
+      - run: python3 scripts/prepare_release.py --version "$RELEASE_VERSION" --commit "$RELEASE_SHA" > dist/CHANGELOG.md
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
         run: |
-          set -euo pipefail
           tag="v${RELEASE_VERSION}"
           if git ls-remote --exit-code --tags origin "refs/tags/$tag"; then
             echo "Refusing to overwrite existing tag $tag" >&2
@@ -131,6 +82,6 @@ jobs:
             status=$?
             if [ "$status" -ne 2 ]; then exit "$status"; fi
           fi
-          args=(release create "$tag" --target "$RELEASE_SHA" --title "Tervix $tag" --notes-file "$DIST_DIR/CHANGELOG.md")
+          args=(release create "$tag" --target "$RELEASE_SHA" --title "Tervix $tag" --notes-file dist/CHANGELOG.md)
           if [ "$RELEASE_PRERELEASE" = true ] || [[ "$RELEASE_VERSION" == *-* ]]; then args+=(--prerelease); fi
-          gh "${args[@]}" "$DIST_DIR"/*
+          gh "${args[@]}" dist/*

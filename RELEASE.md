@@ -9,38 +9,18 @@ GitHub → **Actions → Release → Run workflow** → введите верс�
 prerelease включается автоматически даже при снятом флажке. Для обычного релиза
 используйте версию без суффикса и снимите `prerelease`.
 
-## Runner и предварительная подготовка
+## Runner
 
-Все jobs используют **`[self-hosted, Linux, X64]`**. Достаточно одного runner:
-build/check/test и обе cross-сборки выполняются последовательно, затем тот же
-runner выполняет publish job. GitHub-hosted runners, Wine и Windows VM не нужны.
-
-Администратор runner заранее устанавливает:
-
-- Git, Bash, Python **3.11+**, Rustup и GitHub CLI (`gh`);
-- полный LLVM/Clang toolchain: `clang`, `clang-cl`, `lld-link`, `llvm-rc`, плюс
-  `pkg-config` и обычные Linux build tools;
-- системные библиотеки для сборки Iced на Linux (например, libxkbcommon/Wayland
-  development packages) и Vulkan loader + Mesa/lavapipe либо другой headless
-  WGPU adapter для тестов. Графическое окно тесты не открывают.
-
-Workflow проверяет команды в PATH и **не выполняет `sudo`/`apt`**. Он устанавливает
-Rust 1.89.0 и оба Windows Rust targets в профиль пользователя runner, а
-**cargo-xwin 0.23.0** — в уникальный job-local каталог. cargo-xwin (MIT, MSRV 1.89)
-использует LLVM и загружает Microsoft CRT/Windows SDK; их условия описаны в
-[upstream](https://github.com/rust-cross/cargo-xwin/tree/v0.23.0).
-Нужен сетевой доступ к crates.io, GitHub и серверам Microsoft. Входить через
-`gh auth login` не требуется: publish job использует временный `GITHUB_TOKEN`.
-
-CI также направлен на этот runner. Fork PR не запускает задания на self-hosted
-машине; trusted push и PR из того же репозитория проходят обычные checks.
+CI запускает тесты на Windows x64 и сборки Windows x64 и ARM64 на GitHub-hosted runners.
+Проверки выполняются для всех pull requests и при push в main.
+Ручной Release использует ту же матрицу сборок, затем проверяет и публикует архивы на Ubuntu.
 
 ## Платформы
 
 | Артефакт | Target | Runner | Статус |
 | --- | --- | --- | --- |
-| `tervix-v<VERSION>-windows-x86_64.zip` | `x86_64-pc-windows-msvc` | Linux X64 / cargo-xwin | Основная сборка Windows 11 x64 |
-| `tervix-v<VERSION>-windows-arm64.zip` | `aarch64-pc-windows-msvc` | Linux X64 / cargo-xwin | Экспериментальная, нужна проверка на устройстве |
+| `tervix-v<VERSION>-windows-x86_64.zip` | `x86_64-pc-windows-msvc` | windows-2022 | Основная сборка Windows 11 x64 |
+| `tervix-v<VERSION>-windows-arm64.zip` | `aarch64-pc-windows-msvc` | windows-11-arm | Экспериментальная, нужна проверка на устройстве |
 
 Это все Windows-архитектуры, включённые в текущую release matrix. Linux/macOS
 не публикуются: `tervix-terminal` явно отклоняет запуск локального терминала вне
@@ -56,10 +36,7 @@ Windows, а Windows chrome/resize и Docker transport требуют порти�
 3. Генерирует `CHANGELOG.md` по non-merge commits от ближайшего `v*` tag-предка:
    Features (`feat`), Fixes (`fix`), Performance (`perf`), Other changes.
    Для первого релиза берётся вся история. В notes указан точный source commit.
-4. На Linux X64 выполняет fmt, clippy, Linux-hosted headless tests и docs, затем
-   последовательно `cargo xwin check/build` для обеих Windows-архитектур.
-   Windows ConPTY/named-pipe tests на Linux не выполняются; это отдельная native
-   acceptance, и cross-компиляция не объявляется её заменой.
+4. Собирает и пакует x64 и ARM64 параллельно на GitHub-hosted Windows runners.
 5. В каждом ZIP: exe, лицензия проекта, документация, changelog, инвентарь
    зависимостей, найденные тексты лицензий, BUILD.json и точные Cargo.toml/lock
    сборки. Проверяется PE-архитектура: x64 exe нельзя выдать за ARM64.

@@ -87,7 +87,7 @@ def changelog(root, version, commit):
               "- Windows ARM64 portable ZIP (experimental; native device acceptance pending).",
               "- SHA256SUMS.txt contains checksums for both packages.", "",
               "Linux/macOS are not released: the current terminal adapter explicitly supports Windows only.",
-              "Both Windows architectures are cross-compiled on the self-hosted Linux X64 runner; native Windows acceptance is separate.",
+              "Windows packages are built on GitHub-hosted Windows runners; manual acceptance is separate.",
               "Build versions are applied to the checkout manifests/lockfile; the tag identifies the original source commit.",
               "Artifacts are unsigned. Preview limitations and third-party license review are described in RELEASE.md.", ""]
     return "\n".join(lines)

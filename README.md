@@ -121,8 +121,8 @@ Headless UI tests требуют доступного WGPU adapter, но не о
 вручную запускайте только в выделенной среде: они мешают обычной работе.
 
 Release pipeline запускается **только вручную**: введите новую версию, и он
-на одном **self-hosted Linux X64** runner соберёт Windows x64 + ARM64 через
-cargo-xwin, сгенерирует changelog и создаст GitHub Release
+на GitHub-hosted Windows runners соберёт Windows x64 + ARM64,
+сгенерирует changelog и создаст GitHub Release
 со всеми артефактами и SHA256. ARM64 экспериментальный; Linux/macOS пока не
 поддерживаются терминальным адаптером. [Процедура выпуска](RELEASE.md) ·
 [Release notes](RELEASE_NOTES.md) · [Review готовности](REVIEW.md) ·
