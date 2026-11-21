@@ -1,4 +1,4 @@
-# Выпуск Tervix для Linux
+# Выпуск Tervix для Windows и Linux
 
 В GitHub откройте **Actions → Release → Run workflow**, выберите ветку
 `main` и введите версию без префикса `v`, например `0.2.0`. Версия с
@@ -25,12 +25,25 @@ workflow проверяет Rust, Cargo, компилятор C, Git, Python и 
 
 | Файл | Установка |
 | --- | --- |
+| `tervix-v<VERSION>-windows-x64-Setup.exe` | Запустите мастер и выберите папку. По умолчанию это `%LOCALAPPDATA%\Programs\Tervix`. |
+| `tervix-v<VERSION>-windows-x64.exe` | Запустите напрямую на Windows x64. |
 | `tervix-v<VERSION>-linux-x86_64` | Выполните `chmod +x <файл>` и запустите бинарник. |
 | `tervix-v<VERSION>-linux-x86_64.tar.gz` | Распакуйте архив и запустите `tervix` из него. |
 | `tervix_<VERSION>_amd64.deb` | В Debian или совместимой Ubuntu выполните `sudo apt install ./<файл>.deb`. |
 | `SHA256SUMS.txt` | Для скачанных файлов выполните `sha256sum --ignore-missing -c SHA256SUMS.txt`. |
 
-Бинарник собирается в Debian 12 Bookworm для x86-64 с glibc. Архив подходит
+Мастер устанавливает Tervix для текущего пользователя и добавляет ярлык в меню
+«Пуск». Для удаления откройте «Параметры → Приложения → Установленные приложения».
+Windows-бинарник собирается на Linux через MinGW-w64, мастер — через NSIS.
+Оба файла выпускаются без подписи Authenticode.
+
+На Windows мастер можно проверить в профиле без установленного Tervix:
+
+```powershell
+.\scripts\test_windows_installer.ps1 -Installer .\dist\tervix-v0.1.0-windows-x64-Setup.exe -Portable .\dist\tervix-v0.1.0-windows-x64.exe
+```
+
+Linux-бинарник собирается в Debian 12 Bookworm для x86-64 с glibc. Архив подходит
 для других дистрибутивов с совместимыми системными библиотеками. Для GUI
 нужен графический адаптер с драйвером WGPU. Локальная PTY-сессия в этой версии
 доступна только на Windows.

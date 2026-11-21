@@ -38,6 +38,9 @@ docker run --rm --pull=never --user "$(id -u):$(id -g)" --env HOME=/tmp \
             gh --version
             dpkg-deb --version
             dpkg-shlibdeps --version
+            x86_64-w64-mingw32-gcc --version
+            makensis -VERSION
+            rustup target list --installed | grep -Fxq x86_64-pc-windows-gnu
         else
             for package in fonts-dejavu-core libvulkan1 mesa-vulkan-drivers; do
                 dpkg-query -W -f="\${Status}" "$package" | grep -qx "install ok installed"

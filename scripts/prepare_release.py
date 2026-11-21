@@ -85,6 +85,7 @@ def changelog(root, version, commit):
     if not entries:
         lines += ["No new non-merge commits since the previous version tag.", ""]
     lines += ["## Downloads", "",
+              "- Windows x64 installer (Setup.exe) and standalone executable.",
               "- Linux x86-64 executable, tar.gz archive and Debian package.",
               "- SHA256SUMS.txt for download verification.", "",
               "The local terminal adapter currently supports Windows only. Linux x64 is a preview.",

@@ -11,4 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 FROM common AS release
 RUN apt-get update && apt-get install -y --no-install-recommends gh dpkg-dev \
+    gcc-mingw-w64-x86-64-win32 nsis \
     && rm -rf /var/lib/apt/lists/*
+RUN rustup target add --toolchain "$RUST_VERSION" x86_64-pc-windows-gnu

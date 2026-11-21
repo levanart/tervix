@@ -42,5 +42,3 @@ deb="$dist/tervix_${deb_version}_amd64.deb"
 dpkg-deb --root-owner-group --build "$pkg" "$deb"
 dpkg-deb -x "$deb" "$work/check"
 "$work/check/usr/bin/tervix" --layout-demo
-cd "$dist"
-sha256sum -- * > SHA256SUMS.txt

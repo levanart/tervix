@@ -33,7 +33,10 @@ PowerShell, cmd, WSL и SSH, мониторинг системы и Docker — �
 WGPU DX12/Vulkan. Возможен выбор системного software adapter; наличие WGPU не
 является обещанием измеренного FPS. Приложение не требует elevation по умолчанию.
 
-Для Windows используйте сборку из исходников по инструкции ниже.
+Для Windows x64 скачайте `tervix-v<VERSION>-windows-x64-Setup.exe` со страницы
+релиза, запустите его и выберите папку установки. После установки откройте
+Tervix из меню «Пуск». Для запуска без установки доступен отдельный
+`tervix-v<VERSION>-windows-x64.exe`.
 Для Linux x86-64 скачайте бинарник, архив `.tar.gz` или пакет `.deb` со страницы
 [Releases](https://github.com/levanart/tervix/releases).
 Архив сохраняет право на запуск. Для отдельно скачанного бинарника выполните
@@ -119,7 +122,7 @@ Headless UI tests требуют доступного WGPU adapter, но не о
 вручную запускайте только в выделенной среде: они мешают обычной работе.
 
 Релиз запускается вручную из `main`. Workflow ставит тег версии на выбранный
-коммит, собирает Linux x86-64 и публикует файлы в GitHub Releases.
+коммит, собирает Windows x64 и Linux x86-64 и публикует файлы в GitHub Releases.
 Локальный терминал доступен на Windows.
 [Процедура выпуска](RELEASE.md) ·
 [Release notes](RELEASE_NOTES.md) · [Review готовности](REVIEW.md) ·
