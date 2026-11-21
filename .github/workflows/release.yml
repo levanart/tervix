@@ -18,7 +18,6 @@ permissions:
 jobs:
   release:
     runs-on: [self-hosted, Linux, X64]
-    container: rust:bookworm
     defaults:
       run:
         shell: bash
@@ -37,11 +36,11 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Install release tools
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends gh python3 dpkg-dev libxkbcommon-dev pkg-config
+      - name: Prepare cached Linux release image
+        timeout-minutes: 15
+        run: bash scripts/prepare_runner.sh release
       - name: Prepare version and tag the selected main commit
+        shell: bash scripts/runner_shell.sh {0}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -57,12 +56,14 @@ jobs:
             gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" >/dev/null
           fi
       - name: Build and package Linux x86-64
+        shell: bash scripts/runner_shell.sh {0}
         run: |
           export RUSTUP_TOOLCHAIN="$RUST_VERSION"
           cargo build --release --locked -p tervix
           target/release/tervix --layout-demo
           bash scripts/package_linux.sh target/release/tervix "$RELEASE_VERSION"
       - name: Publish the verified assets
+        shell: bash scripts/runner_shell.sh {0}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

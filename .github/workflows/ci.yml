@@ -10,7 +10,6 @@ jobs:
     # Fork code must not run on the persistent self-hosted runner.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
-    container: rust:bookworm
     defaults:
       run:
         shell: bash
@@ -18,12 +17,13 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Install Linux test dependencies
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends libxkbcommon-dev pkg-config python3 fonts-dejavu-core libvulkan1 mesa-vulkan-drivers
+      - name: Prepare cached Linux test image
+        timeout-minutes: 15
+        run: bash scripts/prepare_runner.sh test
       - run: python3 -m unittest discover -s scripts -p 'test_*.py'
+        shell: bash scripts/runner_shell.sh {0}
       - name: Run Rust tests
+        shell: bash scripts/runner_shell.sh {0}
         run: |
           export RUSTUP_TOOLCHAIN="$RUST_VERSION"
           export XDG_RUNTIME_DIR="$(mktemp -d)"
