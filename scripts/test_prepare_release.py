@@ -57,6 +57,7 @@ class ReleaseTests(unittest.TestCase):
             if args[0] == "rev-parse":
                 return "a" * 40
             if args[0] == "describe":
+                self.assertIn(("--exclude", "v0.2.0"), zip(args, args[1:]))
                 return "v0.1.0"
             self.assertEqual(args[-1], "v0.1.0.." + "a" * 40)
             return "abc1234\tfeat(ui): useful change\ndef5678\tfix: regression"

@@ -33,13 +33,11 @@ PowerShell, cmd, WSL и SSH, мониторинг системы и Docker — �
 WGPU DX12/Vulkan. Возможен выбор системного software adapter; наличие WGPU не
 является обещанием измеренного FPS. Приложение не требует elevation по умолчанию.
 
-1. Если опубликован preview, скачайте Windows x64 ZIP в
-   [Releases](https://github.com/levanart/tervix/releases).
-2. Сверьте SHA256 ZIP с приложенным `SHA256SUMS.txt`:
-   ```powershell
-   Get-FileHash .\tervix-v0.1.0-windows-x86_64.zip -Algorithm SHA256
-   ```
-3. Распакуйте архив и запустите `tervix.exe`.
+Для Windows используйте сборку из исходников по инструкции ниже.
+Для Linux x86-64 скачайте бинарник, архив `.tar.gz` или пакет `.deb` со страницы
+[Releases](https://github.com/levanart/tervix/releases).
+Архив сохраняет право на запуск. Для отдельно скачанного бинарника выполните
+`chmod +x <файл>`. Контрольные суммы доступны в `SHA256SUMS.txt`.
 
 Пакеты пока **не подписаны Authenticode**; checksum не заменяет цифровую подпись.
 PowerShell 7, WSL с дистрибутивом, OpenSSH и Docker устанавливаются отдельно по
@@ -120,10 +118,9 @@ Headless UI tests требуют доступного WGPU adapter, но не о
 тесты Docker/WSL требуют соответствующих компонентов. Тесты desktop automation
 вручную запускайте только в выделенной среде: они мешают обычной работе.
 
-Release pipeline запускается **только вручную**: введите новую версию, и он
-на self-hosted Linux runner соберёт Windows x64, Windows ARM64 и Linux x64,
-сгенерирует changelog и приложит три отдельных бинарника.
-ARM64 экспериментальный. Локальный терминал доступен на Windows.
+Релиз запускается вручную из `main`. Workflow ставит тег версии на выбранный
+коммит, собирает Linux x86-64 и публикует файлы в GitHub Releases.
+Локальный терминал доступен на Windows.
 [Процедура выпуска](RELEASE.md) ·
 [Release notes](RELEASE_NOTES.md) · [Review готовности](REVIEW.md) ·
 [Безопасность](SECURITY.md) · [Лицензия](LICENSE).

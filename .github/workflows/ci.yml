@@ -1,21 +1,16 @@
 name: CI
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+on: pull_request
 
 permissions:
   contents: read
 
 jobs:
-  test-and-build:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  test:
+    # Fork code must not run on the persistent self-hosted runner.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
-    container:
-      image: rust:bookworm
-      volumes:
-        - tervix-windows-sdk:/opt/tervix-windows-sdk
+    container: rust:bookworm
     defaults:
       run:
         shell: bash
@@ -23,17 +18,13 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Install Linux and Windows build tools
+      - name: Install Linux test dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends clang lld llvm libxkbcommon-dev pkg-config
-          bash scripts/setup_xwin.sh
-      - name: Install headless Vulkan driver
-        run: apt-get install -y --no-install-recommends fonts-dejavu-core libvulkan1 mesa-vulkan-drivers
-      - run: cargo test --locked --workspace
-      - name: Build Linux and Windows
-        if: ${{ !cancelled() }}
+          apt-get install -y --no-install-recommends libxkbcommon-dev pkg-config python3 fonts-dejavu-core libvulkan1 mesa-vulkan-drivers
+      - run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Run Rust tests
         run: |
-          cargo build --locked -p tervix
-          cargo xwin build --locked -p tervix --target x86_64-pc-windows-msvc
-          cargo xwin build --locked -p tervix --target aarch64-pc-windows-msvc
+          export RUSTUP_TOOLCHAIN="$RUST_VERSION"
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          cargo test --locked --workspace

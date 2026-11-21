@@ -63,7 +63,8 @@ def changelog(root, version, commit):
     validate_version(version)
     commit = git(root, "rev-parse", "--verify", f"{commit}^{{commit}}")
     try:
-        previous = git(root, "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", commit)
+        previous = git(root, "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*",
+                       "--exclude", f"v{version}", commit)
     except subprocess.CalledProcessError as error:
         if error.returncode != 128:
             raise
@@ -84,9 +85,8 @@ def changelog(root, version, commit):
     if not entries:
         lines += ["No new non-merge commits since the previous version tag.", ""]
     lines += ["## Downloads", "",
-              "- Windows x64 executable.",
-              "- Windows ARM64 executable (experimental).",
-              "- Linux x64 executable (preview).", "",
+              "- Linux x86-64 executable, tar.gz archive and Debian package.",
+              "- SHA256SUMS.txt for download verification.", "",
               "The local terminal adapter currently supports Windows only. Linux x64 is a preview.",
               "Build versions are applied to the checkout manifests/lockfile; the tag identifies the original source commit.",
               "Artifacts are unsigned. Preview limitations and third-party license review are described in RELEASE.md.", ""]
@@ -107,7 +107,9 @@ def main():
             (ROOT / "CHANGELOG.md").write_text(notes, encoding="utf-8")
         else:
             print(notes)
-    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+    except subprocess.CalledProcessError as error:
+        parser.exit(1, f"Release preparation failed: {error}\n{error.stderr or ''}")
+    except (ValueError, OSError) as error:
         parser.exit(1, f"Release preparation failed: {error}\n")
 
 
